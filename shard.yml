@@ -1,0 +1,17 @@
+name: aws
+version: 0.1.0
+
+authors:
+  - Jamie Gaskins <jgaskins@gmail.com>
+
+dependencies:
+  awscr-signer:
+    github: taylorfinnell/awscr-signer
+    branch: master
+  db:
+    github: jgaskins/crystal-db
+    branch: generic-pool
+
+crystal: 0.28.0
+
+license: MIT
