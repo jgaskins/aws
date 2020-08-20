@@ -14,35 +14,41 @@ module AWS
       @access_key_id = AWS.access_key_id,
       @secret_access_key = AWS.secret_access_key,
       @region = AWS.region,
-      @endpoint = URI.parse("https://#{service_name}.amazonaws.com"),
+      @endpoint = URI.parse("https://#{service_name}.#{region}.amazonaws.com"),
     )
       @signer = Awscr::Signer::Signers::V4.new(service_name, region, access_key_id, secret_access_key)
       @connection_pools = Hash({String, Bool}, DB::Pool(HTTP::Client)).new
     end
 
-    def head(path : String, headers : HTTP::Headers)
-      headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.head(path, headers))
-    end
-
     DEFAULT_HEADERS = HTTP::Headers {
-      # Can't sign requests to DigitalOcean with this 🤬
-      # "Connection" => "keep-alive",
+      "Connection" => "keep-alive",
       "User-Agent" => "Crystal AWS #{VERSION}",
     }
-    def get(path : String, headers = HTTP::Headers.new)
-      headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.get(path, headers: headers))
-    end
+    macro inherited
+      def get(path : String, headers = HTTP::Headers.new)
+        headers = DEFAULT_HEADERS.dup.merge!(headers)
+        http(&.get(path, headers: headers))
+      end
 
-    def get(path : String, headers = HTTP::Headers.new, &block : HTTP::Client::Response ->)
-      headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.get(path, headers: headers, &block))
-    end
+      def get(path : String, headers = HTTP::Headers.new, &block : HTTP::Client::Response ->)
+        headers = DEFAULT_HEADERS.dup.merge!(headers)
+        http(&.get(path, headers: headers, &block))
+      end
 
-    def post(path : String, body : String, headers = HTTP::Headers.new)
-      headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.post(path, body: body, headers: headers))
+      def post(path : String, body : String, headers = HTTP::Headers.new)
+        headers = DEFAULT_HEADERS.dup.merge!(headers)
+        http(&.post(path, body: body, headers: headers))
+      end
+
+      def put(path : String, body : IO, headers = HTTP::Headers.new)
+        headers = DEFAULT_HEADERS.dup.merge!(headers)
+        http(&.put(path, body: body, headers: headers))
+      end
+
+      def head(path : String, headers : HTTP::Headers)
+        headers = DEFAULT_HEADERS.dup.merge!(headers)
+        http(&.head(path, headers))
+      end
     end
 
     protected getter endpoint

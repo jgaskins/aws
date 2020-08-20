@@ -4,6 +4,9 @@ require "./client"
 
 module AWS
   module S3
+    class Exception < AWS::Exception
+    end
+
     struct Bucket
       getter name, creation_date
 
@@ -24,6 +27,12 @@ module AWS
 
     class Client < AWS::Client
       SERVICE_NAME = "s3"
+
+      DEFAULT_HEADERS = HTTP::Headers {
+        # Can't sign requests to DigitalOcean spaces with this 🤬
+        # "Connection" => "keep-alive",
+        "User-Agent" => "Crystal AWS #{VERSION}",
+      }
 
       def list_buckets
         xml = get("/").body
@@ -146,8 +155,21 @@ module AWS
         uri
       end
 
-      def put_object(bucket_name : String, key : String)
+      def put_object(bucket_name : String, key : String, headers my_headers : HTTP::Headers, body : IO)
+        headers = HTTP::Headers {
+          "Host" => "#{bucket_name}.#{endpoint.host}",
+        }
+        headers.merge! my_headers
 
+        response = put(
+          "/#{key}",
+          headers: headers,
+          body: body
+        )
+
+        unless response.success?
+          raise Exception.new("S3 PutObject returned HTTP status #{response.status}")
+        end
       end
     end
 

@@ -1,4 +1,5 @@
 require "json"
+require "http"
 
 require "./client"
 
@@ -8,19 +9,111 @@ module AWS
       SERVICE_NAME = "sns"
 
       def publish(topic_arn : String, message : String, subject : String = "")
-        xml = XML.parse(
-          http("#{service_name}.#{@region}.amazonaws.com", &.post(
+        response = http(&.post(
+          path: "/",
+          form: {
+            "Action" => "Publish",
+            "TopicArn" => topic_arn,
+            "Message" => message,
+            "Subject" => subject,
+            "Version" => "2010-03-31",
+          }.select { |key, value| !value.empty? },
+        ))
+
+        if response.success?
+          true
+        else
+          raise "AWS::SNS#publish: #{XML.parse(response.body).to_xml}"
+        end
+      end
+
+      def create_topic(name : String)
+        http do |http|
+          response = http.post(
             path: "/",
             form: {
-              "Action" => "Publish",
-              "TopicArn" => topic_arn,
-              "Message" => message,
-              "Subject" => subject,
-              "Version" => "2010-03-31",
-            }.select { |key, value| !value.empty? },
-          )).body
+              "Action" => "CreateTopic",
+              "Name" => name,
+            },
+          )
+
+          if response.success?
+            Topic.from_xml response.body
+          else
+            raise "AWS::SNS#create_topic: #{XML.parse(response.body).to_xml}"
+          end
+        end
+      end
+
+      def subscribe(
+        topic : Topic,
+        queue : SQS::Queue,
+        sqs = SQS::Client.new(
+          access_key_id: access_key_id,
+          secret_access_key: secret_access_key,
+          region: region,
+          endpoint: endpoint,
+        ),
+      )
+        subscribe(
+          topic_arn: topic.arn,
+          protocol: "sqs",
+          endpoint: sqs.get_queue_attributes(queue.url, %w[QueueArn])["QueueArn"]
         )
-        xml.to_xml
+      end
+
+      def subscribe(
+        topic_arn : String,
+        protocol : String,
+        endpoint : String,
+      )
+        http do |http|
+          response = http.post(
+            path: "/",
+            form: {
+              "Action" => "Subscribe",
+              "TopicArn" => topic_arn,
+              "Protocol" => protocol,
+              "Endpoint" => endpoint,
+            },
+          )
+
+          if response.success?
+            TopicSubscription.from_xml(response.body)
+          else
+            raise "AWS::SNS#subscribe: #{XML.parse(response.body).to_xml}"
+          end
+        end
+      end
+    end
+
+    struct Topic
+      getter arn
+
+      def self.from_xml(xml : String)
+        from_xml XML.parse xml
+      end
+
+      def self.from_xml(xml : XML::Node)
+        new(arn: xml.xpath_node("//xmlns:TopicArn").not_nil!.text)
+      end
+
+      def initialize(@arn : String)
+      end
+    end
+
+    struct TopicSubscription
+      getter arn
+
+      def self.from_xml(xml : String)
+        from_xml XML.parse xml
+      end
+
+      def self.from_xml(xml : XML::Node)
+        new(arn: xml.xpath_node("//xmlns:SubscriptionArn").not_nil!.text)
+      end
+
+      def initialize(@arn : String)
       end
     end
 
