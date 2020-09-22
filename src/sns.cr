@@ -1,7 +1,9 @@
 require "json"
 require "http"
+require "xml"
 
 require "./client"
+require "./sqs"
 
 module AWS
   module SNS
