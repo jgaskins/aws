@@ -9,9 +9,9 @@ dependencies:
     github: taylorfinnell/awscr-signer
     branch: master
   db:
-    github: jgaskins/crystal-db
-    branch: generic-pool
+    github: crystal-lang/crystal-db
+    branch: master
 
-crystal: 0.28.0
+crystal: 0.35.0
 
 license: MIT
