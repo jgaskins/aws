@@ -50,7 +50,7 @@ module AWS
 
       def delete_message_batch(
         queue_url : URI,
-        change_message_visibility_batch_request_entries messages : Enumerable(Message),
+        delete_message_batch_request_entries messages : Enumerable(Message),
       )
         http(queue_url.host.not_nil!) do |http|
           params = HTTP::Params{"Action" => "DeleteMessageBatch"}
