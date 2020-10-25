@@ -10,7 +10,6 @@ dependencies:
     branch: master
   db:
     github: crystal-lang/crystal-db
-    branch: master
 
 crystal: 0.35.0
 
