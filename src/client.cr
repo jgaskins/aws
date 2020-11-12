@@ -49,6 +49,11 @@ module AWS
         headers = DEFAULT_HEADERS.dup.merge!(headers)
         http(&.head(path, headers))
       end
+
+      def delete(path : String, headers = HTTP::Headers.new)
+        headers = DEFAULT_HEADERS.dup.merge!(headers)
+        http(&.delete(path, headers: headers))
+      end
     end
 
     protected getter endpoint

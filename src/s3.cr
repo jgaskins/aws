@@ -171,6 +171,12 @@ module AWS
           raise Exception.new("S3 PutObject returned HTTP status #{response.status}")
         end
       end
+
+      def delete_object(bucket_name : String, key : String)
+        delete("/#{key}", headers: HTTP::Headers {
+          "Host" => "#{bucket_name}.#{endpoint.host}",
+        })
+      end
     end
 
     struct ListBucketResult
