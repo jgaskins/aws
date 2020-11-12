@@ -14,9 +14,17 @@ module AWS
         max_number_of_messages : Int = 1,
         wait_time_seconds : Int = 0,
       )
+        params = HTTP::Params.encode({
+          Action: "ReceiveMessage",
+          MaxNumberOfMessages: max_number_of_messages.to_s,
+          WaitTimeSeconds: wait_time_seconds.to_s,
+          "AttributeName.1": "All",
+          "MessageAttributeName.1": "All",
+        })
+
         xml = XML.parse(
           http(queue_url.host.not_nil!, &.get(
-            "#{queue_url.path}?#{HTTP::Params.encode({Action: "ReceiveMessage", MaxNumberOfMessages: max_number_of_messages.to_s, WaitTimeSeconds: wait_time_seconds.to_s, "AttributeName.1": "All", "MessageAttributeName.1": "All"})}"
+            "#{queue_url.path}?#{params}"
           )).body
         )
         ReceiveMessageResult.from_xml(xml)
@@ -42,8 +50,13 @@ module AWS
 
       def delete_message(queue_url : URI, receipt_handle : String)
         http(queue_url.host.not_nil!) do |http|
+          params = HTTP::Params.encode({
+            Action: "DeleteMessage",
+            ReceiptHandle: receipt_handle,
+          })
+
           http
-            .delete("#{queue_url.path}?#{HTTP::Params.encode({ Action: "DeleteMessage", ReceiptHandle: receipt_handle })}")
+            .delete("#{queue_url.path}?#{params}")
             .body
         end
       end
