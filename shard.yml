@@ -11,6 +11,6 @@ dependencies:
   db:
     github: crystal-lang/crystal-db
 
-crystal: 0.35.0
+crystal: ">= 0.35.0, < 2.0.0"
 
 license: MIT
