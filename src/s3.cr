@@ -168,8 +168,18 @@ module AWS
         )
 
         unless response.success?
-          raise Exception.new("S3 PutObject returned HTTP status #{response.status}")
+          raise Exception.new("S3 PutObject returned HTTP status #{response.status}: #{XML.parse(response.body).to_xml}")
         end
+
+        response
+      end
+
+      def put_object(bucket_name : String, key : String, headers : HTTP::Headers, body : String)
+        put_object bucket_name,
+          key: key,
+          headers: HTTP::Headers { "Content-Length" => body.bytesize.to_s }
+            .tap(&.merge!(headers)),
+          body: IO::Memory.new(body)
       end
 
       def delete_object(bucket_name : String, key : String)
