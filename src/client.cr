@@ -63,6 +63,11 @@ module AWS
         @connection_pools[key] = DB::Pool.new(initial_pool_size: 0, max_idle_pool_size: 20) do
           http = HTTP::Client.new(host, tls: tls)
           http.before_request do |request|
+            # Apparently Connection: keep-alive causes trouble with signatures.
+            # See https://github.com/taylorfinnell/awscr-signer/issues/56#issue-801172534
+            request.headers.delete "Authorization"
+            request.headers.delete "X-Amz-Content-Sha256"
+            request.headers.delete "X-Amz-Date"
             @signer.sign request
           end
 
