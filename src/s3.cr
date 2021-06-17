@@ -28,12 +28,6 @@ module AWS
     class Client < AWS::Client
       SERVICE_NAME = "s3"
 
-      DEFAULT_HEADERS = HTTP::Headers {
-        # Can't sign requests to DigitalOcean spaces with this 🤬
-        # "Connection" => "keep-alive",
-        "User-Agent" => "Crystal AWS #{VERSION}",
-      }
-
       def list_buckets
         xml = get("/").body
         doc = XML.parse xml
