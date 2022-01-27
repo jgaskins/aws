@@ -89,7 +89,7 @@ module AWS
           "Host" => "#{bucket_name}.#{endpoint.host}",
         }
         request = HTTP::Request.new(
-          method: "POST",
+          method: method,
           resource: "/#{key}",
           headers: headers,
         )
