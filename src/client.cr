@@ -4,6 +4,9 @@ require "db/pool"
 
 require "./aws"
 
+# It doesn't handle `Connection: keep-alive` headers :-\
+Awscr::Signer::HeaderCollection::BLACKLIST_HEADERS << "connection"
+
 module AWS
   abstract class Client
     macro service_name
