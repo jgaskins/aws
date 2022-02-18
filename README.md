@@ -101,7 +101,17 @@ sqs.send_message(
   queue_url: queue.url,
   message_body: "hi",
 )
-sqs.receive_message(queue.url
+msgs = sqs.receive_message(
+  queue_url: queue.url,
+  max_number_of_messages: 10,
+  wait_time_seconds: 20,
+)
+msgs.each do |msg|
+  process msg
+end
+
+sqs.delete_message_batch msgs
+```
 
 ## Connection pooling
 
