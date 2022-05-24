@@ -80,23 +80,26 @@ module AWS
         })
       end
 
-      def presigned_url(method : String, bucket_name : String, key : String, ttl = 10.minutes)
+      def presigned_url(method : String, bucket_name : String, key : String, ttl = 10.minutes, headers = HTTP::Headers.new)
         date = Time.utc.to_s("%Y%m%dT%H%M%SZ")
         algorithm = "AWS4-HMAC-SHA256"
         scope = "#{date[0...8]}/#{@region}/s3/aws4_request"
         credential = "#{@access_key_id}/#{scope}"
-        headers = HTTP::Headers {
-          "Host" => "#{bucket_name}.#{endpoint.host}",
-        }
+        headers = headers.dup # Don't mutate headers we received
+        headers["Host"] = "#{bucket_name}.#{endpoint.host}"
+
+        unless key.starts_with? "/"
+          key = "/#{key}"
+        end
         request = HTTP::Request.new(
           method: method,
-          resource: "/#{key}",
+          resource: key,
           headers: headers,
         )
 
         canonical_headers = headers
           .to_a
-          .sort_by { |(key, values)| key }
+          .sort_by { |(key, values)| key.downcase }
         signed_headers = canonical_headers
           .map { |(key, values)| key.downcase }
           .join(';')
@@ -110,11 +113,11 @@ module AWS
 
         canonical_request = String.build { |str|
           str << method << '\n'
-          str << '/' << (key) << '\n'
+          str << key << '\n'
           str << params
             .to_a
             .sort_by { |(key, value)| key }
-            .each_with_object(HTTP::Params.new) { |(key, value), params| params[key] = value }
+            .each_with_object(URI::Params.new) { |(key, value), params| params[key] = value.gsub(/\s+/, ' ') }
           str << '\n'
 
           canonical_headers
