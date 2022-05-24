@@ -44,7 +44,7 @@ module AWS
       end
 
       def list_objects(bucket_name : String)
-        xml = get("/?list-type=2", headers: HTTP::Headers {
+        xml = get("/?list-type=2", headers: HTTP::Headers{
           "Host" => "#{bucket_name}.#{endpoint.host}",
         }).body
         XML.parse(xml).to_xml
@@ -56,13 +56,13 @@ module AWS
       end
 
       def get_object(bucket_name : String, key : String) : String
-        get("/#{key}", headers: HTTP::Headers {
+        get("/#{key}", headers: HTTP::Headers{
           "Host" => "#{bucket_name}.#{endpoint.host}",
         }).body
       end
 
       def get_object(bucket_name : String, key : String, io : IO) : Nil
-        headers = HTTP::Headers {
+        headers = HTTP::Headers{
           "Host" => "#{bucket_name}.#{endpoint.host}",
         }
         get "/#{key}", headers: headers do |response|
@@ -75,7 +75,7 @@ module AWS
       end
 
       def head_object(bucket_name : String, key : String)
-        head("/#{key}", headers: HTTP::Headers {
+        head("/#{key}", headers: HTTP::Headers{
           "Host" => "#{bucket_name}.#{endpoint.host}",
         })
       end
@@ -103,11 +103,11 @@ module AWS
         signed_headers = canonical_headers
           .map { |(key, values)| key.downcase }
           .join(';')
-        params = HTTP::Params {
-          "X-Amz-Algorithm" => algorithm,
-          "X-Amz-Credential" => credential,
-          "X-Amz-Date" => date,
-          "X-Amz-Expires" => ttl.total_seconds.to_i.to_s,
+        params = URI::Params{
+          "X-Amz-Algorithm"     => algorithm,
+          "X-Amz-Credential"    => credential,
+          "X-Amz-Date"          => date,
+          "X-Amz-Expires"       => ttl.total_seconds.to_i.to_s,
           "X-Amz-SignedHeaders" => signed_headers,
         }
 
@@ -153,7 +153,7 @@ module AWS
       end
 
       def put_object(bucket_name : String, key : String, headers my_headers : HTTP::Headers, body : IO)
-        headers = HTTP::Headers {
+        headers = HTTP::Headers{
           "Host" => "#{bucket_name}.#{endpoint.host}",
         }
         headers.merge! my_headers
@@ -174,13 +174,13 @@ module AWS
       def put_object(bucket_name : String, key : String, headers : HTTP::Headers, body : String)
         put_object bucket_name,
           key: key,
-          headers: HTTP::Headers { "Content-Length" => body.bytesize.to_s }
+          headers: HTTP::Headers{"Content-Length" => body.bytesize.to_s}
             .tap(&.merge!(headers)),
           body: IO::Memory.new(body)
       end
 
       def delete_object(bucket_name : String, key : String)
-        delete("/#{key}", headers: HTTP::Headers {
+        delete("/#{key}", headers: HTTP::Headers{
           "Host" => "#{bucket_name}.#{endpoint.host}",
         })
       end
@@ -195,9 +195,9 @@ module AWS
       end
 
       def self.from_xml(xml : XML::Node)
-        name      = xml.xpath_node("./xmlns:Name")
-        prefix    = xml.xpath_node("./xmlns:Prefix")
-        max_keys  = xml.xpath_node("./xmlns:MaxKeys")
+        name = xml.xpath_node("./xmlns:Name")
+        prefix = xml.xpath_node("./xmlns:Prefix")
+        max_keys = xml.xpath_node("./xmlns:MaxKeys")
         key_count = xml.xpath_node("./xmlns:KeyCount")
         truncated = xml.xpath_node("./xmlns:IsTruncated")
 
@@ -222,7 +222,7 @@ module AWS
         @key_count : Int32?,
         @max_keys : Int32,
         @truncated : Bool,
-        @contents : Array(Contents),
+        @contents : Array(Contents)
       )
       end
 
@@ -252,7 +252,7 @@ module AWS
           @last_modified : Time,
           @etag : String,
           @size : Int64,
-          @storage_class : String,
+          @storage_class : String
         )
         end
       end
@@ -263,12 +263,16 @@ module AWS
 
     class Exception < ::AWS::Exception
     end
+
     class UnknownBucket < Exception
     end
+
     class UnknownObject < Exception
     end
+
     class XMLIsNotABucket < Exception
     end
+
     class UnexpectedResponse < Exception
     end
   end
