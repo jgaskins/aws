@@ -20,7 +20,7 @@ module AWS
       @endpoint = URI.parse("https://#{service_name}.#{region}.amazonaws.com"),
     )
       @signer = Awscr::Signer::Signers::V4.new(service_name, region, access_key_id, secret_access_key)
-      @connection_pools = Hash({String, Bool}, DB::Pool(HTTP::Client)).new
+      @connection_pools = Hash({String, Int32?, Bool}, DB::Pool(HTTP::Client)).new
     end
 
     DEFAULT_HEADERS = HTTP::Headers {
@@ -59,10 +59,14 @@ module AWS
 
     protected getter endpoint
 
-    protected def http(host = endpoint.host.not_nil!, tls = true)
-      pool = @connection_pools.fetch({host, tls}) do |key|
-        @connection_pools[key] = DB::Pool.new(initial_pool_size: 0, max_idle_pool_size: 20) do
-          http = HTTP::Client.new(host, tls: tls)
+    protected def http(host = endpoint.host.not_nil!, port = endpoint.port, tls = true)
+      pool = @connection_pools.fetch({host, port, tls}) do |key|
+        @connection_pools[key] = DB::Pool.new(DB::Pool::Options.new(initial_pool_size: 0, max_idle_pool_size: 20)) do
+          if port
+            http = HTTP::Client.new(host, port, tls: tls)
+          else
+            http = HTTP::Client.new(host, tls: tls)
+          end
           http.before_request do |request|
             # Apparently Connection: keep-alive causes trouble with signatures.
             # See https://github.com/taylorfinnell/awscr-signer/issues/56#issue-801172534
