@@ -56,9 +56,17 @@ module AWS
       end
 
       def get_object(bucket_name : String, key : String) : String
-        get("/#{key}", headers: HTTP::Headers{
+        Log.warn { "Getting object #{key} from bucket #{bucket_name}" }
+
+        response = get("/#{key}", headers: HTTP::Headers{
           "Host" => "#{bucket_name}.#{endpoint.host}",
-        }).body
+        })
+
+        unless response.success?
+          raise Exception.new("S3 GetObject returned HTTP status #{response.status}: #{XML.parse(response.body).to_xml}")
+        end
+
+        response.body
       end
 
       def get_object(bucket_name : String, key : String, io : IO) : Nil
@@ -66,7 +74,11 @@ module AWS
           "Host" => "#{bucket_name}.#{endpoint.host}",
         }
         get "/#{key}", headers: headers do |response|
-          IO.copy response.body_io, io
+          if response.success?
+            IO.copy response.body_io, io
+          else
+            raise Exception.new("S3 GetObject returned HTTP status #{response.status}")
+          end
         end
       end
 
