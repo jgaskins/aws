@@ -28,9 +28,8 @@ All AWS clients are instantiated with credentials and a service endpoint. The de
 AWS.access_key_id = "AKIAOMGLOLWTFBBQ"
 AWS.secret_access_key = "this is a secret, don't tell anyone"
 AWS.region = "us-east-1"
+AWS.use_tls = "true"
 ```
-
-There is no global default endpoint since those are specific to the service. If you wish to use a nonstandard endpoint (for example, to use DigitalOcean Spaces or a MinIO instance instead of S3), you must set it when instantiating the client.
 
 To set the defaults via environment variables
 
@@ -39,6 +38,7 @@ To set the defaults via environment variables
 | `access_key_id` | `AWS_ACCESS_KEY_ID` |
 | `secret_access_key` | `AWS_SECRET_ACCESS_KEY` |
 | `region` | `AWS_REGION` |
+| `use_tls` | `AWS_USE_TLS` |
 
 Individual services and their APIs are documented below. All examples assume credentials are set globally and use default AWS endpoints for brevity.
 
@@ -68,6 +68,14 @@ s3.delete_object(bucket_name: "my-bucket", key: "my-object")
 
 # Pre-signed URLs for direct uploads or serving <img/> tags for user-uploaded objects
 s3.presigned_url("PUT", "my-bucket", "my-object", ttl: 10.minutes)
+```
+
+There is no global default endpoint since those are specific to the service. If you wish to use a nonstandard endpoint (for example, to use DigitalOcean Spaces or a MinIO instance instead of S3), you must set it when instantiating the client.
+
+### Custom endpoint
+
+```crystal
+s3 = AWS::S3::Client.new endpoint: URI.parse("http://localhost:4566")
 ```
 
 ### SNS

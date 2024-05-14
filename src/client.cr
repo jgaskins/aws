@@ -18,15 +18,17 @@ module AWS
       @secret_access_key = AWS.secret_access_key,
       @region = AWS.region,
       @endpoint = URI.parse("https://#{service_name}.#{region}.amazonaws.com"),
+      @use_tls = AWS.use_tls
     )
       @signer = Awscr::Signer::Signers::V4.new(service_name, region, access_key_id, secret_access_key)
       @connection_pools = Hash({String, Int32?, Bool}, DB::Pool(HTTP::Client)).new
     end
 
-    DEFAULT_HEADERS = HTTP::Headers {
+    DEFAULT_HEADERS = HTTP::Headers{
       "Connection" => "keep-alive",
       "User-Agent" => "Crystal AWS #{VERSION}",
     }
+
     def get(path : String, headers = HTTP::Headers.new)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
       http(&.get(path, headers: headers))
@@ -59,7 +61,7 @@ module AWS
 
     protected getter endpoint
 
-    protected def http(host = endpoint.host.not_nil!, port = endpoint.port, tls = true)
+    protected def http(host = endpoint.host.not_nil!, port = endpoint.port, tls = @use_tls)
       pool = @connection_pools.fetch({host, port, tls}) do |key|
         @connection_pools[key] = DB::Pool.new(DB::Pool::Options.new(initial_pool_size: 0, max_idle_pool_size: 20)) do
           if port
