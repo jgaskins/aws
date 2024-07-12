@@ -1,6 +1,7 @@
 require "xml"
 
 require "./client"
+require "./bucket_iterator"
 
 module AWS
   module S3
@@ -43,12 +44,22 @@ module AWS
         list_objects bucket.name
       end
 
-      def list_objects(bucket_name : String)
-        xml = get("/?list-type=2", headers: HTTP::Headers{
-          "Host" => "#{bucket_name}.#{endpoint.host}",
-        }).body
-        XML.parse(xml).to_xml
+      def list_objects(bucket_name : String, *, continuation_token : String = "", count : Int32 = 100)
+        query_params = URI::Params{"list-type" => "2"}
+        query_params["continuation-token"] = continuation_token unless continuation_token.blank?
+        query_params["max-keys"] = count.to_s unless count.blank?
+
+        xml = get(
+          "/",
+          headers: HTTP::Headers{ "Host" => "#{bucket_name}.#{endpoint.host}" },
+          query: query_params
+        ).body
+
         ListBucketResult.from_xml xml
+      end
+
+      def bucket_iterator(bucket_name : String)
+        BucketIterator.new(self, bucket_name)
       end
 
       def get_object(bucket : Bucket, key : String)
@@ -56,9 +67,17 @@ module AWS
       end
 
       def get_object(bucket_name : String, key : String) : String
-        get("/#{key}", headers: HTTP::Headers{
+        Log.warn { "Getting object #{key} from bucket #{bucket_name}" }
+
+        response = get("/#{key}", headers: HTTP::Headers{
           "Host" => "#{bucket_name}.#{endpoint.host}",
-        }).body
+        })
+
+        unless response.success?
+          raise Exception.new("S3 GetObject returned HTTP status #{response.status}: #{XML.parse(response.body).to_xml}")
+        end
+
+        response.body
       end
 
       def get_object(bucket_name : String, key : String, io : IO) : Nil
@@ -66,7 +85,11 @@ module AWS
           "Host" => "#{bucket_name}.#{endpoint.host}",
         }
         get "/#{key}", headers: headers do |response|
-          IO.copy response.body_io, io
+          if response.success?
+            IO.copy response.body_io, io
+          else
+            raise Exception.new("S3 GetObject returned HTTP status #{response.status}")
+          end
         end
       end
 
@@ -186,80 +209,6 @@ module AWS
       end
     end
 
-    struct ListBucketResult
-      getter name, prefix, key_count, max_keys, contents
-      getter? truncated
-
-      def self.from_xml(xml : String)
-        from_xml XML.parse(xml).root.not_nil!
-      end
-
-      def self.from_xml(xml : XML::Node)
-        name = xml.xpath_node("./xmlns:Name")
-        prefix = xml.xpath_node("./xmlns:Prefix")
-        max_keys = xml.xpath_node("./xmlns:MaxKeys")
-        key_count = xml.xpath_node("./xmlns:KeyCount")
-        truncated = xml.xpath_node("./xmlns:IsTruncated")
-
-        if name && prefix && max_keys && truncated
-          contents = xml.xpath_nodes("./xmlns:Contents")
-          new(
-            name: name.text,
-            prefix: prefix.text,
-            max_keys: max_keys.text.to_i,
-            key_count: key_count.try(&.text.to_i),
-            truncated: truncated.text == "true",
-            contents: contents.map { |c| Contents.from_xml c },
-          )
-        else
-          raise InvalidXML.new("The following XML does not represent a ListBucketResult: #{xml}")
-        end
-      end
-
-      def initialize(
-        @name : String,
-        @prefix : String,
-        @key_count : Int32?,
-        @max_keys : Int32,
-        @truncated : Bool,
-        @contents : Array(Contents)
-      )
-      end
-
-      struct Contents
-        getter key, last_modified, etag, size, storage_class
-
-        def self.from_xml(xml : String)
-          from_xml XML.parse xml
-        end
-
-        def self.from_xml(xml : XML::Node)
-          if (key = xml.xpath_node("./xmlns:Key")) && (size = xml.xpath_node("./xmlns:Size"))
-            new(
-              key: key.text,
-              last_modified: Time.utc,
-              etag: (xml.xpath_node("./xmlns:ETag").try(&.text) || "").gsub('"', ""),
-              size: size.text.to_i64,
-              storage_class: xml.xpath_node("./xmlns:StorageClass").try(&.text) || "",
-            )
-          else
-            raise InvalidXML.new("The following XML is not a ListBucketResult::Contents: #{xml}")
-          end
-        end
-
-        def initialize(
-          @key : String,
-          @last_modified : Time,
-          @etag : String,
-          @size : Int64,
-          @storage_class : String
-        )
-        end
-      end
-    end
-
-    class InvalidXML < Exception
-    end
 
     class Exception < ::AWS::Exception
     end
@@ -277,3 +226,4 @@ module AWS
     end
   end
 end
+
