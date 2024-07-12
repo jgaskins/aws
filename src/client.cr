@@ -28,38 +28,38 @@ module AWS
       "User-Agent" => "Crystal AWS #{VERSION}",
     }
 
-    def encode(path : String) : String
-      URI.encode_path path
+    def build_uri(path : String, query : URI::Params? = nil) : String
+      URI.new(path: path, query: query).to_s
     end
 
-    def get(path : String, headers = HTTP::Headers.new)
+    def get(path : String, headers = HTTP::Headers.new, *, query : URI::Params? = nil)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.get(encode(path), headers: headers))
+      http(&.get(build_uri(path, query), headers: headers))
     end
 
     def get(path : String, headers = HTTP::Headers.new, &block : HTTP::Client::Response ->)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.get(encode(path), headers: headers, &block))
+      http(&.get(build_uri(path), headers: headers, &block))
     end
 
     def post(path : String, body : String, headers = HTTP::Headers.new)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.post(encode(path), body: body, headers: headers))
+      http(&.post(build_uri(path), body: body, headers: headers))
     end
 
     def put(path : String, body : IO, headers = HTTP::Headers.new)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.put(encode(path), body: body, headers: headers))
+      http(&.put(build_uri(path), body: body, headers: headers))
     end
 
     def head(path : String, headers : HTTP::Headers)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.head(encode(path), headers))
+      http(&.head(build_uri(path), headers))
     end
 
     def delete(path : String, headers = HTTP::Headers.new)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.delete(encode(path), headers: headers))
+      http(&.delete(build_uri(path), headers: headers))
     end
 
     protected getter endpoint
@@ -78,7 +78,7 @@ module AWS
             request.headers.delete "Authorization"
             request.headers.delete "X-Amz-Content-Sha256"
             request.headers.delete "X-Amz-Date"
-            @signer.sign request, encode_path: false
+            @signer.sign request
           end
 
           http
@@ -89,3 +89,4 @@ module AWS
     end
   end
 end
+
