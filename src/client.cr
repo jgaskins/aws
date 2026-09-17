@@ -23,10 +23,11 @@ module AWS
       @connection_pools = Hash({String, Int32?, Bool}, DB::Pool(HTTP::Client)).new
     end
 
-    DEFAULT_HEADERS = HTTP::Headers {
+    DEFAULT_HEADERS = HTTP::Headers{
       "Connection" => "keep-alive",
       "User-Agent" => "Crystal AWS #{VERSION}",
     }
+
     def get(path : String, headers = HTTP::Headers.new)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
       http(&.get(path, headers: headers))
@@ -59,7 +60,7 @@ module AWS
 
     protected getter endpoint
 
-    protected def http(host = endpoint.host.not_nil!, port = endpoint.port, tls = true)
+    protected def http(host = endpoint.host.not_nil!, port = endpoint.port, tls = endpoint.scheme != "http", &)
       pool = @connection_pools.fetch({host, port, tls}) do |key|
         @connection_pools[key] = DB::Pool.new(DB::Pool::Options.new(initial_pool_size: 0, max_idle_pool_size: 20)) do
           if port
@@ -73,7 +74,10 @@ module AWS
             request.headers.delete "Authorization"
             request.headers.delete "X-Amz-Content-Sha256"
             request.headers.delete "X-Amz-Date"
-            @signer.sign request
+            # Paths are already percent-encoded by the service clients using
+            # the same rules as the SigV4 canonical URI, so signing them
+            # verbatim keeps the signed path identical to the wire path.
+            @signer.sign request, encode_path: false
           end
 
           http
