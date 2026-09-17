@@ -39,6 +39,7 @@ To set the defaults via environment variables
 | `access_key_id` | `AWS_ACCESS_KEY_ID` |
 | `secret_access_key` | `AWS_SECRET_ACCESS_KEY` |
 | `region` | `AWS_REGION` |
+| `session_token` | `AWS_SESSION_TOKEN` |
 
 Individual services and their APIs are documented below. All examples assume credentials are set globally and use default AWS endpoints for brevity.
 

@@ -1,11 +1,8 @@
 require "http"
-require "awscr-signer"
 require "db/pool"
 
 require "./aws"
-
-# It doesn't handle `Connection: keep-alive` headers :-\
-Awscr::Signer::HeaderCollection::BLACKLIST_HEADERS << "connection"
+require "./signature_v4"
 
 module AWS
   abstract class Client
@@ -18,8 +15,9 @@ module AWS
       @secret_access_key = AWS.secret_access_key,
       @region = AWS.region,
       @endpoint = URI.parse("https://#{service_name}.#{region}.amazonaws.com"),
+      @session_token = AWS.session_token,
     )
-      @signer = Awscr::Signer::Signers::V4.new(service_name, region, access_key_id, secret_access_key)
+      @signer = SignatureV4.new(service_name, region, access_key_id, secret_access_key, session_token)
       @connection_pools = Hash({String, Int32?, Bool}, DB::Pool(HTTP::Client)).new
     end
 
@@ -69,15 +67,10 @@ module AWS
             http = HTTP::Client.new(host, tls: tls)
           end
           http.before_request do |request|
-            # Apparently Connection: keep-alive causes trouble with signatures.
-            # See https://github.com/taylorfinnell/awscr-signer/issues/56#issue-801172534
-            request.headers.delete "Authorization"
-            request.headers.delete "X-Amz-Content-Sha256"
-            request.headers.delete "X-Amz-Date"
-            # Paths are already percent-encoded by the service clients using
-            # the same rules as the SigV4 canonical URI, so signing them
-            # verbatim keeps the signed path identical to the wire path.
-            @signer.sign request, encode_path: false
+            # Sign at send time so the timestamp is fresh and every header
+            # `HTTP::Client` adds (such as `Host`) is covered. Paths are
+            # signed verbatim, so service clients must percent-encode them.
+            @signer.sign request
           end
 
           http

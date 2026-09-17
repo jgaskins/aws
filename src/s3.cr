@@ -90,74 +90,12 @@ module AWS
         response
       end
 
+      # Returns a URL that lets anyone holding it perform `method` on the
+      # object until `ttl` elapses. Any `headers` given are part of the
+      # signature, so the client using the URL must send them exactly.
       def presigned_url(method : String, bucket_name : String, key : String, ttl = 10.minutes, headers = HTTP::Headers.new)
-        date = Time.utc.to_s("%Y%m%dT%H%M%SZ")
-        algorithm = "AWS4-HMAC-SHA256"
-        scope = "#{date[0...8]}/#{@region}/s3/aws4_request"
-        credential = "#{@access_key_id}/#{scope}"
-        headers = headers.dup # Don't mutate headers we received
-        headers["Host"] = bucket_host(bucket_name)
-
-        path = object_path(key)
-        request = HTTP::Request.new(
-          method: method,
-          resource: path,
-          headers: headers,
-        )
-
-        canonical_headers = headers
-          .to_a
-          .sort_by { |(key, values)| key.downcase }
-        signed_headers = canonical_headers
-          .map { |(key, values)| key.downcase }
-          .join(';')
-        params = URI::Params{
-          "X-Amz-Algorithm"     => algorithm,
-          "X-Amz-Credential"    => credential,
-          "X-Amz-Date"          => date,
-          "X-Amz-Expires"       => ttl.total_seconds.to_i.to_s,
-          "X-Amz-SignedHeaders" => signed_headers,
-        }
-
-        canonical_request = String.build { |str|
-          str << method << '\n'
-          str << path << '\n'
-          str << params
-            .to_a
-            .sort_by { |(key, value)| key }
-            .each_with_object(URI::Params.new) { |(key, value), params| params[key] = value.gsub(/\s+/, ' ') }
-          str << '\n'
-
-          canonical_headers
-            .each do |(key, values)|
-              values.each do |value|
-                str << key.downcase << ':' << value.strip << '\n'
-              end
-            end
-          str << '\n'
-
-          str << signed_headers << '\n'
-          str << "UNSIGNED-PAYLOAD"
-        }
-
-        string_to_sign = <<-STRING
-        #{algorithm}
-        #{date}
-        #{scope}
-        #{(OpenSSL::Digest.new("SHA256") << canonical_request).final.hexstring}
-        STRING
-
-        date_key = OpenSSL::HMAC.digest(OpenSSL::Algorithm::SHA256, "AWS4#{@secret_access_key}", date[0...8])
-        region_key = OpenSSL::HMAC.digest(OpenSSL::Algorithm::SHA256, date_key, @region)
-        service_key = OpenSSL::HMAC.digest(OpenSSL::Algorithm::SHA256, region_key, "s3")
-        signing_key = OpenSSL::HMAC.digest(OpenSSL::Algorithm::SHA256, service_key, "aws4_request")
-        signature = OpenSSL::HMAC.hexdigest(OpenSSL::Algorithm::SHA256, signing_key, string_to_sign)
-        uri = URI.parse("#{endpoint.scheme}://#{bucket_host(bucket_name)}#{request.resource}")
-
-        params["X-Amz-Signature"] = signature
-
-        uri.query = params.to_s
-        uri
+        uri = URI.parse("#{endpoint.scheme}://#{bucket_host(bucket_name)}#{object_path(key)}")
+        @signer.presign(method, uri, headers: headers, expires_in: ttl)
       end
 
       def put_object(bucket_name : String, key : String, headers my_headers : HTTP::Headers, body : IO)
