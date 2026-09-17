@@ -39,16 +39,26 @@ module AWS
         end
       end
 
-      def list_objects(bucket : Bucket)
-        list_objects bucket.name
+      def list_objects(bucket : Bucket, marker : String? = nil)
+        list_objects bucket.name, marker: marker
       end
 
-      def list_objects(bucket_name : String)
-        xml = get("/?list-type=2", headers: HTTP::Headers{
+      def list_objects(bucket_name : String, marker : String? = nil)
+        params = URI::Params{
+          "list-type" => "2",
+        }
+        params["marker"] = marker if marker
+
+        response = get("/?#{params}", headers: HTTP::Headers{
           "Host" => "#{bucket_name}.#{endpoint.host}",
-        }).body
-        XML.parse(xml).to_xml
-        ListBucketResult.from_xml xml
+        })
+        if response.success?
+          xml = response.body
+
+          ListBucketResult.from_xml xml
+        else
+          raise Exception.new(response.body)
+        end
       end
 
       def get_object(bucket : Bucket, key : String)
@@ -187,8 +197,13 @@ module AWS
     end
 
     struct ListBucketResult
-      getter name, prefix, key_count, max_keys, contents
-      getter? truncated
+      getter name : String
+      getter prefix : String
+      getter key_count : Int64?
+      getter max_keys : Int64?
+      getter contents : Array(Contents)
+      getter? truncated : Bool
+      getter next_continuation_token : String?
 
       def self.from_xml(xml : String)
         from_xml XML.parse(xml).root.not_nil!
@@ -200,16 +215,18 @@ module AWS
         max_keys = xml.xpath_node("./xmlns:MaxKeys")
         key_count = xml.xpath_node("./xmlns:KeyCount")
         truncated = xml.xpath_node("./xmlns:IsTruncated")
+        next_continuation_token = xml.xpath_node("./xmlns:NextContinuationToken")
 
         if name && prefix && max_keys && truncated
           contents = xml.xpath_nodes("./xmlns:Contents")
           new(
             name: name.text,
             prefix: prefix.text,
-            max_keys: max_keys.text.to_i,
-            key_count: key_count.try(&.text.to_i),
+            max_keys: max_keys.text.to_i64,
+            key_count: key_count.try(&.text.to_i64),
             truncated: truncated.text == "true",
             contents: contents.map { |c| Contents.from_xml c },
+            next_continuation_token: next_continuation_token.try(&.text),
           )
         else
           raise InvalidXML.new("The following XML does not represent a ListBucketResult: #{xml}")
@@ -217,12 +234,13 @@ module AWS
       end
 
       def initialize(
-        @name : String,
-        @prefix : String,
-        @key_count : Int32?,
-        @max_keys : Int32,
-        @truncated : Bool,
-        @contents : Array(Contents)
+        @name,
+        @prefix,
+        @key_count,
+        @max_keys,
+        @truncated,
+        @contents,
+        @next_continuation_token,
       )
       end
 
@@ -252,7 +270,7 @@ module AWS
           @last_modified : Time,
           @etag : String,
           @size : Int64,
-          @storage_class : String
+          @storage_class : String,
         )
         end
       end
