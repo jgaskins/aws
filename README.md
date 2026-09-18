@@ -71,6 +71,46 @@ s3.delete_object(bucket_name: "my-bucket", key: "my-object")
 s3.presigned_url("PUT", "my-bucket", "my-object", ttl: 10.minutes)
 ```
 
+#### Multipart uploads
+
+Objects larger than 5GB must be uploaded in parts, and multipart uploads are also the way to upload a stream whose size you don't know up front or that can't be rewound. The simplest way is to hand the client an `IO` and let it split it into parts:
+
+```crystal
+File.open("big-video.mp4") do |file|
+  s3.multipart_upload(
+    bucket_name: "my-bucket",
+    key: "big-video.mp4",
+    body: file,
+    headers: HTTP::Headers{"Content-Type" => "video/mp4"},
+    part_size: 16 * 1024 * 1024, # optional, defaults to the 5MB minimum
+  )
+end
+```
+
+Only one part is held in memory at a time, and if anything fails the upload is aborted so you aren't billed for orphaned parts.
+
+If you need more control (for example, to upload parts concurrently or to resume an upload after a crash), the individual API calls are available, too:
+
+```crystal
+upload = s3.create_multipart_upload("my-bucket", "big-video.mp4", headers: HTTP::Headers{"Content-Type" => "video/mpeg"})
+
+# Parts are numbered from 1 and may be uploaded in any order. Each part
+# except the last must be at least 5MB. String, Bytes, and IO bodies are
+# accepted; a non-`IO::Memory` IO must be rewindable and needs a
+# Content-Length header.
+parts = [
+  s3.upload_part(upload, 1, first_chunk),
+  s3.upload_part(upload, 2, second_chunk),
+]
+
+# If you lost track of which parts made it, S3 can tell you
+s3.list_parts(upload).parts
+
+s3.complete_multipart_upload(upload, parts)
+# ... or, to give up and free the storage the parts are using:
+s3.abort_multipart_upload(upload)
+```
+
 ### SNS
 
 ```crystal
