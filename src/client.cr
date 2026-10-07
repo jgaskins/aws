@@ -36,14 +36,28 @@ module AWS
       http(&.get(path, headers: headers, &block))
     end
 
-    def post(path : String, body : String, headers = HTTP::Headers.new)
+    def post(path : String, body : IO, headers = HTTP::Headers.new)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.post(path, body: body, headers: headers))
+      start = body.pos
+      begin
+        http(&.post(path, body: body, headers: headers))
+      rescue ex : IO::Error
+        raise ex unless ex.os_error.in?(Errno::EPIPE, Errno::ECONNRESET)
+        body.pos = start # File/IO::Memory are seekable; signer already requires this
+        http(&.post(path, body: body, headers: headers))
+      end
     end
 
     def put(path : String, body : IO, headers = HTTP::Headers.new)
       headers = DEFAULT_HEADERS.dup.merge!(headers)
-      http(&.put(path, body: body, headers: headers))
+      start = body.pos
+      begin
+        http(&.put(path, body: body, headers: headers))
+      rescue ex : IO::Error
+        raise ex unless ex.os_error.in?(Errno::EPIPE, Errno::ECONNRESET)
+        body.pos = start # File/IO::Memory are seekable; signer already requires this
+        http(&.put(path, body: body, headers: headers))
+      end
     end
 
     def head(path : String, headers : HTTP::Headers)
@@ -77,7 +91,12 @@ module AWS
         end
       end
 
-      pool.checkout { |http| yield http }
+      pool.checkout do |http|
+        yield http
+      rescue ex : IO::Error | OpenSSL::SSL::Error
+        http.close # don't return a dead socket to the pool
+        raise ex
+      end
     end
   end
 end
